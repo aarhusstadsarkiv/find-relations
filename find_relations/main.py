@@ -28,6 +28,10 @@ def main():
     """
     This program converts SQLite databases into specially encoded files
     for faster search of relationships between tables.
+
+    The first step is to encode the database using the 'encode' command.
+
+    Once the encoded file is ready, the 'search' commands can look for specific values.
     """
 
 

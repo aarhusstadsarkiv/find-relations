@@ -15,6 +15,10 @@ Commands:
   search  Search an encoded database.
 ```
 
+The first step is to encode the database using `encode` command.
+
+Once the encoded file is ready, the `search` command can look for specific values.
+
 ### Encode
 
 ```
