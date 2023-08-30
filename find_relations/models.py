@@ -25,7 +25,7 @@ class ColInfo:
     name: str
     type: str
     notnull: bool
-    dflt_value: Any | None
+    dflt_value: Optional[Any]
     pk: bool
 
     @property
