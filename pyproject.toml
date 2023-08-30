@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "find-relations"
+version = "0.1.0"
+description = "Find relationships in SQLite databases."
+authors = ["Matteo Campinoti <matteo.campinoti94@gmail.com>", "Aarhus Stadsarkiv <stadsarkiv@aarhus.dk>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+orjson = "^3.9.5"
+click = "^8.1.7"
+
+[tool.poetry.scripts]
+find-relations = "find_relations.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
