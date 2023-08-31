@@ -8,7 +8,6 @@ from typing import Any
 from typing import BinaryIO
 
 from .encode import encode_table_column
-from .models import ColInfo
 from .models import Header
 from .models import TableInfo
 from .models import sql_types_int
@@ -67,11 +66,12 @@ class Database:
         return self.table_offset_start(table) + self.table_size(table) - 1
 
 
-def print_all_results(results: list[tuple[TableInfo, int]]):
-    for table, block in results:
-        print(f"Found match in '{table.name}'"
-              f" {(block // len(table.columns)) + 1}:{(block % len(table.columns)) + 1}"
-              f" '{table.columns[block % len(table.columns)].name}'")
+def print_all_results(results: list[tuple[TableInfo, list[int]]]):
+    for table, blocks in results:
+        print(f"Found match in '{table.name}'",
+              f"{(blocks[0] // len(table.columns)) + 1}:"
+              f"{','.join(str((b % len(table.columns)) + 1) for b in blocks)}",
+              ' '.join(f'{table.columns[b % len(table.columns)].name}' for b in blocks))
 
     print(
         f"{len(results)} matches found",
@@ -79,23 +79,19 @@ def print_all_results(results: list[tuple[TableInfo, int]]):
     )
 
 
-def column_from_block(table: TableInfo, block: int) -> ColInfo:
-    return table.columns[block % len(table.columns)]
-
-
-def print_tables_results(results: list[tuple[TableInfo, int]]):
+def print_tables_results(results: list[tuple[TableInfo, list[int]]]):
     tables: dict[str, TableInfo] = {}
     tables_results: dict[(str, str), int] = {}
 
-    for table, block in results:
-        column: str = column_from_block(table, block).name
+    for table, blocks in results:
+        columns: tuple[str] = tuple(table.columns[block % len(table.columns)].name for block in blocks)
         tables[table.name] = table
-        tables_results[(table.name, column)] = tables_results.get((table.name, column), 0) + 1
+        tables_results[(table.name, columns)] = tables_results.get((table.name, columns), 0) + 1
 
-    sorter = (lambda tc: (tc[0][0], [c.name for c in tables[tc[0][0]].columns].index(tc[0][1])))
+    sorter = (lambda tc: (tc[0][0], [c.name for c in tables[tc[0][0]].columns].index(tc[0][1][0])))
 
-    for [table, column], count in sorted(tables_results.items(), key=sorter):
-        print(f"Found {count} matches in '{table}' in column '{column}'")
+    for [table, columns], count in sorted(tables_results.items(), key=sorter):
+        print(f"Found {count} matches in '{table}' in columns", ' '.join(f"'{c}'" for c in columns))
 
     print(
         f"Found {len(results)} matches",
@@ -103,18 +99,18 @@ def print_tables_results(results: list[tuple[TableInfo, int]]):
     )
 
 
-async def sort_results(output: Queue[tuple[TableInfo, int]]) -> list[tuple[TableInfo, int]]:
-    results: list[tuple[TableInfo, int]] = []
+async def sort_results(output: Queue[tuple[TableInfo, list[int]]]) -> list[tuple[TableInfo, list[int]]]:
+    results: list[tuple[TableInfo, list[int]]] = []
 
     while not output.empty():
         results.append(await output.get())
 
-    return sorted(results, key=lambda r: (r[0].name, r[1]))
+    return sorted(results, key=lambda r: (r[0].name, min(r[1])))
 
 
 async def find_value_in_region(
         file: Path, value_hash: bytes, table: TableInfo, start: int, end: int,
-        output: Queue[tuple[TableInfo, int]]
+        output: Queue[tuple[TableInfo, list[int]]]
 ):
     if output.full():
         return
@@ -129,14 +125,14 @@ async def find_value_in_region(
             if fh.read(hash_length) == value_hash:
                 if output.full():
                     break
-                await output.put((table, block_number))
+                await output.put((table, [block_number]))
 
     print("Done")
 
 
 async def find_values_in_region(
         file: Path, value_hashes: set[bytes], table: TableInfo, start: int, end: int,
-        output: Queue[tuple[TableInfo, int]]
+        output: Queue[tuple[TableInfo, list[int]]]
 ):
     if output.full():
         return
@@ -152,22 +148,24 @@ async def find_values_in_region(
         blocks: int = (end - start) // hash_length
         for block_number in range(0, blocks, columns):
             value_hashes_copy = value_hashes.copy()
+            match_blocks = []
             for column in range(columns):
                 block = fh.read(hash_length)
                 if block in value_hashes_copy:
                     if output.full():
                         return
                     value_hashes_copy.remove(block)
+                    match_blocks.append(block_number + column)
                     if not value_hashes_copy:
-                        await output.put((table, block_number))
+                        await output.put((table, match_blocks))
 
     print("Done")
 
 
 async def find_value_parent(db: Database, value_hash: bytes, exclude: list[str], max_results: int
-                            ) -> list[tuple[TableInfo, int]]:
+                            ) -> list[tuple[TableInfo, list[int]]]:
     exclude = exclude or []
-    output: Queue[tuple[TableInfo, int]] = asyncio.Queue(max_results)
+    output: Queue[tuple[TableInfo, list[int]]] = asyncio.Queue(max_results)
 
     for table in filter(lambda t: t.name not in exclude, db.header.tables):
         await find_value_in_region(
@@ -183,9 +181,9 @@ async def find_value_parent(db: Database, value_hash: bytes, exclude: list[str],
 
 
 async def find_values_parent(db: Database, value_hashes: set[bytes], exclude: list[str], max_results: int
-                             ) -> list[tuple[TableInfo, int]]:
+                             ) -> list[tuple[TableInfo, list[int]]]:
     exclude = exclude or []
-    output: Queue[tuple[TableInfo, int]] = asyncio.Queue(max_results)
+    output: Queue[tuple[TableInfo, list[int]]] = asyncio.Queue(max_results)
 
     for table in filter(lambda t: t.name not in exclude, db.header.tables):
         await find_values_in_region(
@@ -202,7 +200,7 @@ async def find_values_parent(db: Database, value_hashes: set[bytes], exclude: li
 
 # noinspection DuplicatedCode
 def find_value(db: Database, value_type: str, value_serialised: str, *, max_results: int, exclude_null: bool
-               ) -> list[tuple[TableInfo, int]]:
+               ) -> list[tuple[TableInfo, list[int]]]:
     value_hash: bytes
 
     if not db.header.preserve_types or value_type == "text":
@@ -224,7 +222,7 @@ def find_value(db: Database, value_type: str, value_serialised: str, *, max_resu
 
 # noinspection DuplicatedCode
 def find_values(db: Database, values: tuple[tuple[str, str]], *, max_results: int, exclude_null: bool
-                ) -> list[tuple[TableInfo, int]]:
+                ) -> list[tuple[TableInfo, list[int]]]:
     value_hashes: set[bytes] = set()
 
     for value_type, value_serialised in values:
@@ -253,7 +251,7 @@ def find_values(db: Database, values: tuple[tuple[str, str]], *, max_results: in
 
 
 def find_cell(db: Database, table: str, row: int, column: int, *, max_results: int, exclude_null: bool
-              ) -> list[tuple[TableInfo, int]]:
+              ) -> list[tuple[TableInfo, list[int]]]:
     value_hash: bytes = db.seek_read(db.table_offset_start(table, row - 1, column - 1), db.hash_length)
 
     print(f"Searching for '{table}' R{row}C{column}")
@@ -268,13 +266,13 @@ def find_cell(db: Database, table: str, row: int, column: int, *, max_results: i
 
 
 def find_column(db: Database, table: str, column: int, *, max_results: int, exclude_null: bool
-                ) -> list[tuple[TableInfo, int]]:
+                ) -> list[tuple[TableInfo, list[int]]]:
     table_info: TableInfo = db.tables[table.lower()]
 
     assert 0 < column <= len(table_info.columns), f"Column {column} does not exist (max {len(table_info.columns)})"
 
     values_hashes: set[bytes] = set()
-    results: list[tuple[TableInfo, int]] = []
+    results: list[tuple[TableInfo, list[int]]] = []
 
     for row in range(table_info.rows):
         value_hash: bytes = db.seek_read(db.table_offset_start(table, row, column - 1), db.hash_length)

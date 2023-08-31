@@ -83,7 +83,7 @@ def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, in
     db: Database = Database(file)
     t1: float
     t2: float
-    results: list[tuple[TableInfo, int]]
+    results: list[tuple[TableInfo, list[int]]]
 
     t1 = perf_counter()
 
