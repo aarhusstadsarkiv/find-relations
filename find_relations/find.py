@@ -71,7 +71,7 @@ def print_all_results(results: list[tuple[TableInfo, list[int]]]):
         print(f"Found match in '{table.name}'",
               f"{(blocks[0] // len(table.columns)) + 1}:"
               f"{','.join(str((b % len(table.columns)) + 1) for b in blocks)}",
-              ' '.join(f'{table.columns[b % len(table.columns)].name}' for b in blocks))
+              ' '.join(f"'{table.columns[b % len(table.columns)].name}'" for b in blocks))
 
     print(
         f"{len(results)} matches found",
