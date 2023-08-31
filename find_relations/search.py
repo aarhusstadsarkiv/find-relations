@@ -79,7 +79,7 @@ def print_all_results(results: list[tuple[TableInfo, list[int]]]):
     )
 
 
-def print_tables_results(results: list[tuple[TableInfo, list[int]]]):
+def print_aggregated_results(results: list[tuple[TableInfo, list[int]]]):
     tables: dict[str, TableInfo] = {}
     tables_results: dict[(str, str), int] = {}
 

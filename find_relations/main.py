@@ -21,7 +21,7 @@ from .search import find_column
 from .search import find_value
 from .search import find_values
 from .search import print_all_results
-from .search import print_tables_results
+from .search import print_aggregated_results
 from .models import TableInfo
 from .models import sql_types_int
 
@@ -105,6 +105,6 @@ def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, in
     if show_all_results:
         print_all_results(results)
     else:
-        print_tables_results(results)
+        print_aggregated_results(results)
 
     print(f"\nSearched {db.data_size / db.hash_length:.0f} cells in", timedelta(seconds=t2 - t1))
