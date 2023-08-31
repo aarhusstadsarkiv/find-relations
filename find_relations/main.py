@@ -15,13 +15,13 @@ from click import version_option
 
 from . import __version__
 from .encode import encode_database
-from .find import Database
-from .find import find_cell
-from .find import find_column
-from .find import find_value
-from .find import find_values
-from .find import print_all_results
-from .find import print_tables_results
+from .search import Database
+from .search import find_cell
+from .search import find_column
+from .search import find_value
+from .search import find_values
+from .search import print_all_results
+from .search import print_tables_results
 from .models import TableInfo
 from .models import sql_types_int
 
