@@ -9,6 +9,7 @@ readme = "README.md"
 python = "^3.9"
 orjson = "^3.9.5"
 click = "^8.1.7"
+aiofile = "^3.8.8"
 
 [tool.poetry.scripts]
 find-relations = "find_relations.main:main"
