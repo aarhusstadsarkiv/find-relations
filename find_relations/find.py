@@ -6,7 +6,6 @@ from json import loads
 from pathlib import Path
 from typing import Any
 from typing import BinaryIO
-from aiofile import async_open
 
 from .encode import encode_table_column
 from .models import ColInfo
@@ -100,7 +99,7 @@ def print_tables_results(results: list[tuple[TableInfo, int]]):
 
     print(
         f"Found {len(results)} matches",
-        f" across {len(set(t.name for [t, _] in results))} tables" if results else ""
+        f"across {len(set(t.name for [t, _] in results))} tables" if results else ""
     )
 
 
@@ -120,15 +119,49 @@ async def find_value_in_region(
     if output.full():
         return
 
-    async with async_open(file, "rb") as fh:
+    print(f"Searching table '{table.name}' ... ", end="", flush=True)
+
+    with file.open("rb") as fh:
         fh.seek(start)
         hash_length: int = len(value_hash)
         blocks: int = (end - start) // hash_length
         for block_number in range(blocks):
-            if await fh.read(hash_length) == value_hash:
+            if fh.read(hash_length) == value_hash:
                 if output.full():
                     break
                 await output.put((table, block_number))
+
+    print("Done")
+
+
+async def find_values_in_region(
+        file: Path, value_hashes: set[bytes], table: TableInfo, start: int, end: int,
+        output: Queue[tuple[TableInfo, int]]
+):
+    if output.full():
+        return
+    elif len(value_hashes) > len(table.columns):
+        return
+
+    print(f"Searching table '{table.name}' ... ", end="", flush=True)
+
+    with file.open("rb") as fh:
+        fh.seek(start)
+        hash_length: int = len(list(value_hashes).pop())
+        columns: int = len(table.columns)
+        blocks: int = (end - start) // hash_length
+        for block_number in range(0, blocks, columns):
+            value_hashes_copy = value_hashes.copy()
+            for column in range(columns):
+                block = fh.read(hash_length)
+                if block in value_hashes_copy:
+                    if output.full():
+                        return
+                    value_hashes_copy.remove(block)
+                    if not value_hashes_copy:
+                        await output.put((table, block_number))
+
+    print("Done")
 
 
 async def find_value_parent(db: Database, value_hash: bytes, exclude: list[str], max_results: int
@@ -136,19 +169,38 @@ async def find_value_parent(db: Database, value_hash: bytes, exclude: list[str],
     exclude = exclude or []
     output: Queue[tuple[TableInfo, int]] = asyncio.Queue(max_results)
 
-    await asyncio.gather(*[
-        find_value_in_region(db.file,
-                             value_hash,
-                             table,
-                             db.table_offset_start(table.name),
-                             db.table_offset_end(table.name),
-                             output)
-        for table in db.header.tables if table.name not in exclude
-    ])
+    for table in filter(lambda t: t.name not in exclude, db.header.tables):
+        await find_value_in_region(
+            db.file,
+            value_hash,
+            table,
+            db.table_offset_start(table.name),
+            db.table_offset_end(table.name),
+            output
+        )
 
     return await sort_results(output)
 
 
+async def find_values_parent(db: Database, value_hashes: set[bytes], exclude: list[str], max_results: int
+                             ) -> list[tuple[TableInfo, int]]:
+    exclude = exclude or []
+    output: Queue[tuple[TableInfo, int]] = asyncio.Queue(max_results)
+
+    for table in filter(lambda t: t.name not in exclude, db.header.tables):
+        await find_values_in_region(
+            db.file,
+            value_hashes,
+            table,
+            db.table_offset_start(table.name),
+            db.table_offset_end(table.name),
+            output
+        )
+
+    return await sort_results(output)
+
+
+# noinspection DuplicatedCode
 def find_value(db: Database, value_type: str, value_serialised: str, *, max_results: int, exclude_null: bool
                ) -> list[tuple[TableInfo, int]]:
     value_hash: bytes
@@ -161,13 +213,43 @@ def find_value(db: Database, value_type: str, value_serialised: str, *, max_resu
         value_hash = db.encode_value(value_type, loads(value_serialised))
 
     if exclude_null and value_hash == db.null_hash:
-        print("Value is null", end="\n\n")
+        print("Value is null")
         return []
 
     print(f"Searching for {value_type.upper()} value {value_serialised}")
-    print(*(f"{b:02x}" for b in value_hash), end="\n\n")
+    print(*(f"{b:02x}" for b in value_hash))
 
     return asyncio.run(find_value_parent(db, value_hash, [], max_results))
+
+
+# noinspection DuplicatedCode
+def find_values(db: Database, values: tuple[tuple[str, str]], *, max_results: int, exclude_null: bool
+                ) -> list[tuple[TableInfo, int]]:
+    value_hashes: set[bytes] = set()
+
+    for value_type, value_serialised in values:
+        if not db.header.preserve_types or value_type == "text":
+            value_hash = db.encode_value("text", value_serialised)
+        elif value_type == "blob":
+            value_hash = bytes([int(value_serialised[n:n + 2], base=16) for n in range(0, len(value_serialised), 2)])
+        else:
+            value_hash = db.encode_value(value_type, loads(value_serialised))
+
+        if exclude_null and value_hash == db.null_hash:
+            continue
+
+        value_hashes.add(value_hash)
+
+        print(f"Searching for {value_type.upper()} value {value_serialised}")
+        print(*(f"{b:02x}" for b in value_hash))
+
+    if not value_hashes:
+        print("No Values to search")
+        return []
+
+    print()
+
+    return asyncio.run(find_values_parent(db, value_hashes, [], max_results))
 
 
 def find_cell(db: Database, table: str, row: int, column: int, *, max_results: int, exclude_null: bool
@@ -177,10 +259,10 @@ def find_cell(db: Database, table: str, row: int, column: int, *, max_results: i
     print(f"Searching for '{table}' R{row}C{column}")
 
     if exclude_null and value_hash == db.null_hash:
-        print("Skipping null value.", end="\n\n")
+        print("Skipping null value.")
         return []
 
-    print(*(f"{b:02x}" for b in value_hash), end="\n\n")
+    print(*(f"{b:02x}" for b in value_hash))
 
     return asyncio.run(find_value_parent(db, value_hash, [], max_results))
 
@@ -217,6 +299,5 @@ def find_column(db: Database, table: str, column: int, *, max_results: int, excl
 
         if len(results) >= max_results:
             break
-    print()
 
     return results
