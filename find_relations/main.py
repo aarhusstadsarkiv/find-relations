@@ -2,7 +2,7 @@ from datetime import timedelta
 from hashlib import algorithms_available
 from pathlib import Path
 from sqlite3 import Connection
-from time import perf_counter
+from timeit import timeit
 from typing import Optional
 
 from click import Choice
@@ -24,6 +24,17 @@ from .search import find_value
 from .search import find_values
 from .search import print_aggregated_results
 from .search import print_all_results
+
+
+def timer(text: str):
+    def inner(func):
+        def func_new(*args, **kwargs):
+            t = timeit(lambda: func(*args, **kwargs), number=1)
+            print(f"\n{text}", timedelta(seconds=t))
+
+        return func_new
+
+    return inner
 
 
 @group("find-relations")
@@ -49,6 +60,7 @@ def main():
 @option("--sample", metavar="ROWS", type=IntRange(1), default=None,
         help="Encode a random sample of ROWS rows for each table.")
 @option("--ignore-types", is_flag=True, default=False, help="Do not encode type information.")
+@timer("Converted database in")
 def encode(file: Path, output: Path, hash_algo: str, ignore_types: bool, sample: Optional[int]):
     """
     Encode a SQLite database FILE into a searchable format containing the hashes of each cell's value.
@@ -58,14 +70,8 @@ def encode(file: Path, output: Path, hash_algo: str, ignore_types: bool, sample:
     Always available hash algorithms are: blake2b, blake2s, md5, sha1, sha224, sha256, sha384, sha3_224, sha3_256,
     sha3_384, sha3_512, sha512, shake_128, shake_256.
     """
-    t1 = perf_counter()
-
     conn: Connection = Connection(file)
     encode_database(conn, output or file.with_suffix(file.suffix + ".dat"), hash_algo, not ignore_types, sample)
-
-    t2 = perf_counter()
-
-    print(f"\nConverted database in", timedelta(seconds=t2 - t1))
 
 
 @main.command("search", short_help="Search an encoded database.")
@@ -79,6 +85,7 @@ def encode(file: Path, output: Path, hash_algo: str, ignore_types: bool, sample:
 @option("--max-results", metavar="INTEGER", type=IntRange(1), help="Stop after INTEGER results.")
 @option("--include-null", is_flag=True, default=False, help="Do not skip null values.")
 @option("--show-all-results", is_flag=True, default=False, help="Do not aggregate results.")
+@timer("Search completed in")
 def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, int, int]],
          column: Optional[tuple[str, int]], max_results: Optional[int], include_null: bool, show_all_results: bool):
     """
@@ -91,8 +98,6 @@ def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, in
     t2: float
     results: list[tuple[TableInfo, list[int]]]
 
-    t1 = perf_counter()
-
     if cell:
         results = find_cell(db, *cell, max_results=max_results or 0, exclude_null=not include_null)
     elif len(value) == 1:
@@ -104,13 +109,9 @@ def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, in
     else:
         raise NotImplemented()
 
-    t2 = perf_counter()
-
     print()
 
     if show_all_results:
         print_all_results(results)
     else:
         print_aggregated_results(results)
-
-    print(f"\nSearched {db.data_size / db.hash_length:.0f} cells in", timedelta(seconds=t2 - t1))
