@@ -84,7 +84,10 @@ def print_tables_results(results: list[tuple[TableInfo, list[int]]]):
     tables_results: dict[(str, str), int] = {}
 
     for table, blocks in results:
-        columns: tuple[str] = tuple(table.columns[block % len(table.columns)].name for block in blocks)
+        columns: tuple[str] = tuple(sorted(
+            (table.columns[block % len(table.columns)].name for block in blocks),
+            key=[t.name for t in table.columns].index
+        ))
         tables[table.name] = table
         tables_results[(table.name, columns)] = tables_results.get((table.name, columns), 0) + 1
 
