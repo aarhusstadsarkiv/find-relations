@@ -17,6 +17,7 @@ from .find import Database
 from .find import find_cell
 from .find import find_column
 from .find import find_value
+from .find import find_values
 from .find import print_all_results
 from .find import print_tables_results
 from .models import TableInfo
@@ -61,7 +62,7 @@ def encode(file: Path, output: Path, hash_algo: str, ignore_types: bool, sample:
 @main.command("search", short_help="Search an encoded database.")
 @argument("file", required=1, type=ClickPath(exists=True, dir_okay=False, resolve_path=True, path_type=Path))
 @option("--value", metavar="<SQL-TYPE JSON-VALUE>", type=(Choice(list(sql_types_int.keys())), str),
-        help="Search for a specific value.")
+        multiple=True, help="Search for a specific value.")
 @option("--cell", metavar="<TABLE ROW COLUMN>", type=(str, IntRange(1), IntRange(1)),
         help="Search for the value in a cell.")
 @option("--column", metavar="<TABLE COLUMN>", type=(str, IntRange(1)),
@@ -69,7 +70,7 @@ def encode(file: Path, output: Path, hash_algo: str, ignore_types: bool, sample:
 @option("--max-results", metavar="INTEGER", type=IntRange(1), help="Stop after INTEGER results.")
 @option("--include-null", is_flag=True, default=False, help="Do not skip null values.")
 @option("--show-all-results", is_flag=True, default=False, help="Do not aggregate results.")
-def find(file: Path, value: Optional[tuple[str, str]], cell: Optional[tuple[str, int, int]],
+def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, int, int]],
          column: Optional[tuple[str, int]], max_results: Optional[int], include_null: bool, show_all_results: bool):
     """
     Search for specific values, cells, or columns inside an encoded FILE.
@@ -85,14 +86,18 @@ def find(file: Path, value: Optional[tuple[str, str]], cell: Optional[tuple[str,
 
     if cell:
         results = find_cell(db, *cell, max_results=max_results or 0, exclude_null=not include_null)
+    elif len(value) == 1:
+        results = find_value(db, *value[0], max_results=max_results or 0, exclude_null=not include_null)
     elif value:
-        results = find_value(db, *value, max_results=max_results or 0, exclude_null=not include_null)
+        results = find_values(db, value, max_results=max_results or 0, exclude_null=not include_null)
     elif column:
         results = find_column(db, *column, max_results=max_results or 0, exclude_null=not include_null)
     else:
         raise NotImplemented()
 
     t2 = perf_counter()
+
+    print()
 
     if show_all_results:
         print_all_results(results)
