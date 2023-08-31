@@ -64,8 +64,8 @@ def encode(file: Path, output: Path, hash_algo: str, ignore_types: bool, sample:
 
 @main.command("search", short_help="Search an encoded database.")
 @argument("file", required=1, type=ClickPath(exists=True, dir_okay=False, resolve_path=True, path_type=Path))
-@option("--value", metavar="<SQL-TYPE JSON-VALUE>", type=(Choice(list(sql_types_int.keys())), str),
-        multiple=True, help="Search for a specific value.")
+@option("--value", metavar="<SQL-TYPE JSON-VALUE>...", type=(Choice(list(sql_types_int.keys())), str),
+        multiple=True, help="Search for specific values.")
 @option("--cell", metavar="<TABLE ROW COLUMN>", type=(str, IntRange(1), IntRange(1)),
         help="Search for the value in a cell.")
 @option("--column", metavar="<TABLE COLUMN>", type=(str, IntRange(1)),
