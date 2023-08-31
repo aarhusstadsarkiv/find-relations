@@ -6,6 +6,7 @@ from json import loads
 from pathlib import Path
 from typing import Any
 from typing import BinaryIO
+from aiofile import async_open
 
 from .encode import encode_table_column
 from .models import ColInfo
@@ -119,12 +120,12 @@ async def find_value_in_region(
     if output.full():
         return
 
-    with file.open("rb") as fh:
+    async with async_open(file, "rb") as fh:
         fh.seek(start)
         hash_length: int = len(value_hash)
         blocks: int = (end - start) // hash_length
         for block_number in range(blocks):
-            if fh.read(hash_length) == value_hash:
+            if await fh.read(hash_length) == value_hash:
                 if output.full():
                     break
                 await output.put((table, block_number))
