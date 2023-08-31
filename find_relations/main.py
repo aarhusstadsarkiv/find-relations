@@ -15,15 +15,15 @@ from click import version_option
 
 from . import __version__
 from .encode import encode_database
+from .models import TableInfo
+from .models import sql_types_int
 from .search import Database
 from .search import find_cell
 from .search import find_column
 from .search import find_value
 from .search import find_values
-from .search import print_all_results
 from .search import print_aggregated_results
-from .models import TableInfo
-from .models import sql_types_int
+from .search import print_all_results
 
 
 @group("find-relations")
@@ -58,8 +58,14 @@ def encode(file: Path, output: Path, hash_algo: str, ignore_types: bool, sample:
     Always available hash algorithms are: blake2b, blake2s, md5, sha1, sha224, sha256, sha384, sha3_224, sha3_256,
     sha3_384, sha3_512, sha512, shake_128, shake_256.
     """
+    t1 = perf_counter()
+
     conn: Connection = Connection(file)
     encode_database(conn, output or file.with_suffix(file.suffix + ".dat"), hash_algo, not ignore_types, sample)
+
+    t2 = perf_counter()
+
+    print(f"\nConverted database in", timedelta(seconds=t2 - t1))
 
 
 @main.command("search", short_help="Search an encoded database.")
