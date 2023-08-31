@@ -217,7 +217,7 @@ def find_value(db: Database, value_type: str, value_serialised: str, *, max_resu
         return []
 
     print(f"Searching for {value_type.upper()} value {value_serialised}")
-    print(*(f"{b:02x}" for b in value_hash))
+    print(*(f"{b:02x}" for b in value_hash), end="\n\n")
 
     return asyncio.run(find_value_parent(db, value_hash, [], max_results))
 
@@ -262,7 +262,7 @@ def find_cell(db: Database, table: str, row: int, column: int, *, max_results: i
         print("Skipping null value.")
         return []
 
-    print(*(f"{b:02x}" for b in value_hash))
+    print(*(f"{b:02x}" for b in value_hash), end="\n\n")
 
     return asyncio.run(find_value_parent(db, value_hash, [], max_results))
 
@@ -288,11 +288,11 @@ def find_column(db: Database, table: str, column: int, *, max_results: int, excl
             print("Skipping searched value")
             continue
 
-        print(*(f"{b:02x}" for b in value_hash))
+        print(*(f"{b:02x}" for b in value_hash), end="\n\n")
 
         row_results = asyncio.run(find_value_parent(db, value_hash, [table_info.name], max_results - len(results)))
 
-        print(f"Found {len(row_results)} matches")
+        print(f"Found {len(row_results)} matches", end="\n\n" if row < table_info.rows - 1 else "\n")
 
         results.extend(row_results)
         values_hashes.add(value_hash)
