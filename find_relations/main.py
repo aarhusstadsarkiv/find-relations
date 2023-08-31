@@ -11,7 +11,9 @@ from click import Path as ClickPath
 from click import argument
 from click import group
 from click import option
+from click import version_option
 
+from . import __version__
 from .encode import encode_database
 from .find import Database
 from .find import find_cell
@@ -25,6 +27,7 @@ from .models import sql_types_int
 
 
 @group("find-relations")
+@version_option(__version__)
 def main():
     """
     This program converts SQLite databases into specially encoded files
