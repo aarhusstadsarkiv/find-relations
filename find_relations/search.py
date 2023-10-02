@@ -172,10 +172,6 @@ def find_value_parent(
                                             db.table_offset_end(table.name), max_results)
         if table_output:
             output.extend(((table, [b]) for b in table_output))
-        if max_results and len(output) >= max_results:
-            break
-        elif max_results:
-            max_results -= len(output)
 
     return sort_results(output)
 
@@ -192,10 +188,6 @@ def find_values_parent(
         table_output = find_values_in_region(db.file, value_hashes, table, db.table_offset_start(table.name),
                                              db.table_offset_end(table.name), max_results)
         output.extend((table, xs) for xs in table_output if xs)
-        if max_results and len(output) >= max_results:
-            break
-        elif max_results:
-            max_results -= len(output)
 
     return sort_results(output)
 
