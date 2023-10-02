@@ -109,8 +109,6 @@ def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, in
     else:
         raise NotImplemented()
 
-    print()
-
     if show_all_results:
         print_all_results(results)
     else:
