@@ -91,6 +91,8 @@ def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, in
     """
     Search for specific values, cells, or columns inside an encoded FILE.
 
+    The '--max-results' option cannot be used when searching for multiple values with the '--value' option.
+
     See 'find-relations encode' for help on encoding a database.
     """
     db: Database = Database(file)
@@ -103,6 +105,8 @@ def find(file: Path, value: tuple[tuple[str, str]], cell: Optional[tuple[str, in
     elif len(value) == 1:
         results = find_value(db, *value[0], max_results=max_results or 0, exclude_null=not include_null)
     elif value:
+        if max_results:
+            print("--max-results cannot be used when searching multiple values")
         results = find_values(db, value, max_results=max_results or 0, exclude_null=not include_null)
     elif column:
         results = find_column(db, *column, max_results=max_results or 0, exclude_null=not include_null)

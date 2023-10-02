@@ -56,4 +56,6 @@ Options:
 
 Search for specific values, cells, or columns inside an encoded FILE.
 
+The `--max-results` option cannot be used when searching for multiple values with the `--value` option.
+
 See [`find-relations encode`](#encode) for help on encoding a database.
