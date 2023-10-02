@@ -129,7 +129,7 @@ def find_values_in_region(
         return []
 
     line: str = f"Searching table '{table.name}' ... "
-    results: list[list[int]] = []
+    results: dict[tuple[int, ...], list[list[int]]] = {}
 
     try:
         print(line, end="", flush=True)
@@ -142,13 +142,16 @@ def find_values_in_region(
             for block_number in range(0, blocks, columns):
                 value_hashes_copy = value_hashes.copy()
                 match_blocks = []
+                match_columns = []
                 for column in range(columns):
                     block = fh.read(hash_length)
                     if block in value_hashes_copy:
                         value_hashes_copy.remove(block)
+                        match_columns.append(column)
                         match_blocks.append(block_number + column)
                         if not value_hashes_copy:
-                            results.append(match_blocks)
+                            match_columns_tuple = tuple(match_columns)
+                            results[match_columns_tuple] = [*results.get(match_columns_tuple, []), match_blocks]
                             if max_results and len(results) >= max_results:
                                 raise StopIteration()
     except StopIteration:
@@ -156,7 +159,7 @@ def find_values_in_region(
     finally:
         print("\r" + (" " * len(line)) + "\r", end="", flush=True)
 
-    return results
+    return [mb for mbs in results.values() for mb in mbs]
 
 
 def find_value_parent(
